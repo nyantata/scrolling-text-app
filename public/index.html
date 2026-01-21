@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>横スクロールテキスト表示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 900px;
+            overflow: hidden;
+        }
+
+        .mode-selector {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 20px;
+            border: none;
+            background: transparent;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #6c757d;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .mode-btn:hover {
+            background: #e9ecef;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .mode-content {
+            display: none;
+        }
+
+        .mode-content.active {
+            display: block;
+        }
+
+        .host-display {
+            background: #000;
+            height: 200px;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .scrolling-container {
+            position: absolute;
+            white-space: nowrap;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            left: 100%;
+        }
+
+        .scrolling-text {
+            display: inline-block;
+            color: #00ff00;
+            font-size: 48px;
+            font-weight: bold;
+            padding: 0 50px;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            animation: scroll 7.5s linear infinite;
+        }
+
+        @keyframes scroll {
+            from {
+                transform: translateX(0);
+            }
+            to {
+                transform: translateX(-200%);
+            }
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.waiting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .room-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .room-code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            letter-spacing: 5px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .input-section {
+            margin-bottom: 20px;
+        }
+
+        .room-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .room-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 20px;
+            font-size: 24px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .instructions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .instructions h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin: 8px 0;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="mode-selector">
+            <button class="mode-btn active" data-mode="host">🖥️ ホストモード</button>
+            <button class="mode-btn" data-mode="client">📱 クライアントモード</button>
+        </div>
+
+        <div class="content">
+            <div class="mode-content active" id="host-mode">
+                <div class="status waiting" id="host-status">
+                    接続中...
+                </div>
+                
+                <div class="room-info">
+                    <p style="color: #6c757d; margin-bottom: 10px;">ルームコード</p>
+                    <div class="room-code" id="host-room-code">----</div>
+                </div>
+
+                <div class="host-display">
+                    <div class="scrolling-container">
+                        <div class="scrolling-text" id="scrolling-text">
+                            テキストがここに表示されます
+                        </div>
+                    </div>
+                </div>
+
+                <div class="instructions">
+                    <h3>使い方</h3>
+                    <ol>
+                        <li>ルームコードをクライアントに共有してください</li>
+                        <li>スマホやPCなど異なるデバイスから接続できます</li>
+                        <li>クライアントが入力したテキストがリアルタイムで表示されます</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="mode-content" id="client-mode">
+                <div class="status disconnected" id="client-status">
+                    未接続
+                </div>
+
+                <div class="input-section">
+                    <input type="text" 
+                           class="room-input" 
+                           id="room-code-input" 
+                           placeholder="ルームコードを入力"
+                           maxlength="4">
+                    <button class="btn btn-primary" id="connect-btn">接続</button>
+                </div>
+
+                <div id="text-input-section" style="display: none;">
+                    <textarea class="text-input" 
+                              id="text-input" 
+                              rows="4" 
+                              placeholder="ここに入力してください..."></textarea>
+                    <button class="btn btn-secondary" id="disconnect-btn">切断</button>
+                </div>
+
+                <div class="instructions">
+                    <h3>使い方</h3>
+                    <ol>
+                        <li>ホストから共有されたルームコードを入力</li>
+                        <li>「接続」ボタンをクリック</li>
+                        <li>テキストを入力するとホスト側に表示されます</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket接続
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}`;
+        let ws = null;
+        let hostRoomCode = null;
+        let clientRoomCode = null;
+
+        // モード切り替え
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.mode;
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(`${mode}-mode`).classList.add('active');
+            });
+        });
+
+        function generateRoomCode() {
+            return Math.random().toString(36).substring(2, 6).toUpperCase();
+        }
+
+        function connectWebSocket() {
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket接続成功');
+                initHost();
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                switch (data.type) {
+                    case 'text_updated':
+                        updateScrollingText(data.text);
+                        break;
+                    case 'room_joined':
+                        document.getElementById('text-input').value = data.text === 'テキストがここに表示されます' ? '' : data.text;
+                        break;
+                    case 'error':
+                        alert(data.message);
+                        break;
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket エラー:', error);
+                document.getElementById('host-status').textContent = '接続エラー';
+                document.getElementById('host-status').className = 'status disconnected';
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket切断');
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function initHost() {
+            hostRoomCode = generateRoomCode();
+            document.getElementById('host-room-code').textContent = hostRoomCode;
+            
+            ws.send(JSON.stringify({
+                type: 'create_room',
+                roomCode: hostRoomCode
+            }));
+            
+            document.getElementById('host-status').textContent = 'ルーム作成完了 - クライアント接続待ち';
+            document.getElementById('host-status').className = 'status connected';
+        }
+
+        function updateScrollingText(text) {
+            const scrollingText = document.getElementById('scrolling-text');
+            if (scrollingText.textContent !== text) {
+                scrollingText.textContent = text;
+                scrollingText.style.animation = 'none';
+                setTimeout(() => {
+                    scrollingText.style.animation = 'scroll 7.5s linear infinite';
+                }, 10);
+            }
+        }
+
+        // クライアントモード
+        document.getElementById('connect-btn').addEventListener('click', () => {
+            const roomCode = document.getElementById('room-code-input').value.toUpperCase();
+            
+            if (roomCode.length !== 4) {
+                alert('4文字のルームコードを入力してください');
+                return;
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                clientRoomCode = roomCode;
+                ws.send(JSON.stringify({
+                    type: 'join_room',
+                    roomCode: roomCode
+                }));
+                
+                document.getElementById('client-status').textContent = `ルーム ${roomCode} に接続しました`;
+                document.getElementById('client-status').className = 'status connected';
+                document.querySelector('.input-section').style.display = 'none';
+                document.getElementById('text-input-section').style.display = 'block';
+                document.getElementById('text-input').focus();
+            }
+        });
+
+        document.getElementById('text-input').addEventListener('input', (e) => {
+            if (clientRoomCode && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'update_text',
+                    text: e.target.value || 'テキストがここに表示されます'
+                }));
+            }
+        });
+
+        document.getElementById('disconnect-btn').addEventListener('click', () => {
+            clientRoomCode = null;
+            document.getElementById('client-status').textContent = '未接続';
+            document.getElementById('client-status').className = 'status disconnected';
+            document.querySelector('.input-section').style.display = 'block';
+            document.getElementById('text-input-section').style.display = 'none';
+            document.getElementById('room-code-input').value = '';
+            document.getElementById('text-input').value = '';
+        });
+
+        // 初期化
+        connectWebSocket();
+    </script>
+</body>
+</html>
