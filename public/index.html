@@ -72,38 +72,30 @@
 
         .host-display {
             background: #000;
-            height: 200px;
+            height: 400px;
             border-radius: 10px;
             overflow: hidden;
             position: relative;
             margin-bottom: 20px;
         }
 
-        .scrolling-container {
+        .scrolling-text {
             position: absolute;
             white-space: nowrap;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            left: 100%;
-        }
-
-        .scrolling-text {
-            display: inline-block;
             color: #00ff00;
             font-size: 48px;
             font-weight: bold;
-            padding: 0 50px;
             text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
-            animation: scroll 7.5s linear infinite;
+            animation: scroll-horizontal 10s linear forwards;
+            pointer-events: none;
         }
 
-        @keyframes scroll {
+        @keyframes scroll-horizontal {
             from {
-                transform: translateX(0);
+                left: 100%;
             }
             to {
-                transform: translateX(-200%);
+                left: -100%;
             }
         }
 
@@ -213,6 +205,15 @@
             background: #5a6268;
         }
 
+        .btn-send {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-send:hover {
+            background: #218838;
+        }
+
         .instructions {
             background: #f8f9fa;
             padding: 20px;
@@ -253,12 +254,8 @@
                     <div class="room-code" id="host-room-code">----</div>
                 </div>
 
-                <div class="host-display">
-                    <div class="scrolling-container">
-                        <div class="scrolling-text" id="scrolling-text">
-                            テキストがここに表示されます
-                        </div>
-                    </div>
+                <div class="host-display" id="host-display">
+                    <!-- 複数のテキストがここに追加されます -->
                 </div>
 
                 <div class="instructions">
@@ -266,7 +263,8 @@
                     <ol>
                         <li>ルームコードをクライアントに共有してください</li>
                         <li>スマホやPCなど異なるデバイスから接続できます</li>
-                        <li>クライアントが入力したテキストがリアルタイムで表示されます</li>
+                        <li>クライアントが送信したテキストが次々と表示されます</li>
+                        <li>ニコニコ動画風に複数のテキストが同時にスクロールします</li>
                     </ol>
                 </div>
             </div>
@@ -290,6 +288,7 @@
                               id="text-input" 
                               rows="4" 
                               placeholder="ここに入力してください..."></textarea>
+                    <button class="btn btn-send" id="send-btn">送信</button>
                     <button class="btn btn-secondary" id="disconnect-btn">切断</button>
                 </div>
 
@@ -298,7 +297,8 @@
                     <ol>
                         <li>ホストから共有されたルームコードを入力</li>
                         <li>「接続」ボタンをクリック</li>
-                        <li>テキストを入力するとホスト側に表示されます</li>
+                        <li>テキストを入力して「送信」ボタンをクリック</li>
+                        <li>何度でも送信できます！</li>
                     </ol>
                 </div>
             </div>
@@ -340,11 +340,8 @@
                 const data = JSON.parse(event.data);
                 
                 switch (data.type) {
-                    case 'text_updated':
-                        updateScrollingText(data.text);
-                        break;
-                    case 'room_joined':
-                        document.getElementById('text-input').value = data.text === 'テキストがここに表示されます' ? '' : data.text;
+                    case 'text_sent':
+                        addScrollingText(data.text);
                         break;
                     case 'error':
                         alert(data.message);
@@ -377,15 +374,24 @@
             document.getElementById('host-status').className = 'status connected';
         }
 
-        function updateScrollingText(text) {
-            const scrollingText = document.getElementById('scrolling-text');
-            if (scrollingText.textContent !== text) {
-                scrollingText.textContent = text;
-                scrollingText.style.animation = 'none';
-                setTimeout(() => {
-                    scrollingText.style.animation = 'scroll 7.5s linear infinite';
-                }, 10);
-            }
+        function addScrollingText(text) {
+            if (!text || text === 'テキストがここに表示されます') return;
+            
+            const display = document.getElementById('host-display');
+            const scrollingText = document.createElement('div');
+            scrollingText.className = 'scrolling-text';
+            scrollingText.textContent = text;
+            
+            // ランダムな縦位置（0-90%の範囲で均等に配置）
+            const randomTop = Math.random() * 90;
+            scrollingText.style.top = `${randomTop}%`;
+            
+            display.appendChild(scrollingText);
+            
+            // アニメーション終了後に要素を削除
+            scrollingText.addEventListener('animationend', () => {
+                scrollingText.remove();
+            });
         }
 
         // クライアントモード
@@ -412,12 +418,33 @@
             }
         });
 
-        document.getElementById('text-input').addEventListener('input', (e) => {
+        // 送信ボタン
+        document.getElementById('send-btn').addEventListener('click', () => {
+            const text = document.getElementById('text-input').value.trim();
+            
+            if (!text) {
+                alert('テキストを入力してください');
+                return;
+            }
+            
             if (clientRoomCode && ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
-                    type: 'update_text',
-                    text: e.target.value || 'テキストがここに表示されます'
+                    type: 'send_text',
+                    roomCode: clientRoomCode,
+                    text: text
                 }));
+                
+                // 送信後、テキストエリアをクリア
+                document.getElementById('text-input').value = '';
+                document.getElementById('text-input').focus();
+            }
+        });
+
+        // Enterキーで送信
+        document.getElementById('text-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('send-btn').click();
             }
         });
 
