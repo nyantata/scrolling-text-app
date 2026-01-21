@@ -69,6 +69,22 @@ wss.on('connection', (ws) => {
                         }
                     }
                     break;
+                    
+                case 'send_image':
+                    // 画像送信（ホストにブロードキャスト）
+                    if (ws.roomCode && rooms.has(data.roomCode)) {
+                        const room = rooms.get(data.roomCode);
+                        
+                        // ホストに送信
+                        if (room.host && room.host.readyState === WebSocket.OPEN) {
+                            room.host.send(JSON.stringify({
+                                type: 'image_sent',
+                                image: data.image
+                            }));
+                            console.log(`画像送信: ${data.roomCode}`);
+                        }
+                    }
+                    break;
             }
         } catch (error) {
             console.error('エラー:', error);
