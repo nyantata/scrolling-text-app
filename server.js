@@ -1,4 +1,4 @@
-// server.js - Glitch用のWebSocketサーバー
+// server.js - ニコニコ風横スクロールアプリ用WebSocketサーバー
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -9,7 +9,12 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 // 静的ファイルの提供
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ルートパスの処理
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // ルーム管理
 const rooms = new Map();
@@ -26,7 +31,7 @@ wss.on('connection', (ws) => {
                 case 'create_room':
                     // ルーム作成
                     rooms.set(data.roomCode, {
-                        text: 'テキストがここに表示されます',
+                        host: ws,
                         clients: new Set()
                     });
                     ws.roomCode = data.roomCode;
@@ -40,12 +45,6 @@ wss.on('connection', (ws) => {
                         ws.roomCode = data.roomCode;
                         ws.isHost = false;
                         rooms.get(data.roomCode).clients.add(ws);
-                        
-                        // 現在のテキストを送信
-                        ws.send(JSON.stringify({
-                            type: 'room_joined',
-                            text: rooms.get(data.roomCode).text
-                        }));
                         console.log(`ルーム参加: ${data.roomCode}`);
                     } else {
                         ws.send(JSON.stringify({
@@ -55,23 +54,19 @@ wss.on('connection', (ws) => {
                     }
                     break;
                     
-                case 'update_text':
-                    // テキスト更新
-                    if (ws.roomCode && rooms.has(ws.roomCode)) {
-                        const room = rooms.get(ws.roomCode);
-                        room.text = data.text;
+                case 'send_text':
+                    // テキスト送信（ホストにブロードキャスト）
+                    if (ws.roomCode && rooms.has(data.roomCode)) {
+                        const room = rooms.get(data.roomCode);
                         
-                        // ホストに通知
-                        wss.clients.forEach(client => {
-                            if (client.readyState === WebSocket.OPEN && 
-                                client.roomCode === ws.roomCode && 
-                                client.isHost) {
-                                client.send(JSON.stringify({
-                                    type: 'text_updated',
-                                    text: data.text
-                                }));
-                            }
-                        });
+                        // ホストに送信
+                        if (room.host && room.host.readyState === WebSocket.OPEN) {
+                            room.host.send(JSON.stringify({
+                                type: 'text_sent',
+                                text: data.text
+                            }));
+                            console.log(`テキスト送信: ${data.roomCode} - "${data.text}"`);
+                        }
                     }
                     break;
             }
@@ -83,12 +78,14 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         if (ws.roomCode && rooms.has(ws.roomCode)) {
             const room = rooms.get(ws.roomCode);
-            room.clients.delete(ws);
             
-            // ホストが切断した場合、ルームを削除
             if (ws.isHost) {
+                // ホストが切断した場合、ルームを削除
                 rooms.delete(ws.roomCode);
                 console.log(`ルーム削除: ${ws.roomCode}`);
+            } else {
+                // クライアントが切断した場合、セットから削除
+                room.clients.delete(ws);
             }
         }
     });
