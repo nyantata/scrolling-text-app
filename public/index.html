@@ -167,11 +167,76 @@
             border-radius: 10px;
             resize: none;
             font-family: inherit;
+            margin-bottom: 15px;
         }
 
         .text-input:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .upload-section {
+            margin-top: 15px;
+            padding: 20px;
+            border: 2px dashed #e9ecef;
+            border-radius: 10px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+
+        .upload-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+
+        .upload-label:hover {
+            background: #5568d3;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .preview-container {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .remove-image {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .remove-image:hover {
+            background: #c82333;
+        }
+
+        .scrolling-image {
+            position: absolute;
+            animation: scroll-horizontal 10s linear forwards;
+            pointer-events: none;
+            max-height: 300px;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 255, 0, 0.3);
         }
 
         .btn {
@@ -288,6 +353,25 @@
                               id="text-input" 
                               rows="4" 
                               placeholder="ここに入力してください..."></textarea>
+                    
+                    <div class="upload-section">
+                        <label for="image-upload" class="upload-label">
+                            📷 画像を選択
+                        </label>
+                        <input type="file" 
+                               id="image-upload" 
+                               class="file-input"
+                               accept="image/*">
+                        <p style="color: #6c757d; font-size: 14px; margin-top: 10px;">
+                            画像は自動的に最適化されます
+                        </p>
+                        <div class="preview-container" id="preview-container">
+                            <img id="preview-image" class="preview-image" alt="プレビュー">
+                            <br>
+                            <button class="remove-image" id="remove-image">画像を削除</button>
+                        </div>
+                    </div>
+                    
                     <button class="btn btn-send" id="send-btn">送信</button>
                     <button class="btn btn-secondary" id="disconnect-btn">切断</button>
                 </div>
@@ -343,6 +427,9 @@
                     case 'text_sent':
                         addScrollingText(data.text);
                         break;
+                    case 'image_sent':
+                        addScrollingImage(data.image);
+                        break;
                     case 'error':
                         alert(data.message);
                         break;
@@ -394,6 +481,26 @@
             });
         }
 
+        function addScrollingImage(imageData) {
+            if (!imageData) return;
+            
+            const display = document.getElementById('host-display');
+            const scrollingImage = document.createElement('img');
+            scrollingImage.className = 'scrolling-image';
+            scrollingImage.src = imageData;
+            
+            // ランダムな縦位置
+            const randomTop = Math.random() * 70;
+            scrollingImage.style.top = `${randomTop}%`;
+            
+            display.appendChild(scrollingImage);
+            
+            // アニメーション終了後に要素を削除
+            scrollingImage.addEventListener('animationend', () => {
+                scrollingImage.remove();
+            });
+        }
+
         // クライアントモード
         document.getElementById('connect-btn').addEventListener('click', () => {
             const roomCode = document.getElementById('room-code-input').value.toUpperCase();
@@ -418,25 +525,113 @@
             }
         });
 
+        // 画像関連
+        let selectedImage = null;
+
+        // 画像選択
+        document.getElementById('image-upload').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // ファイルサイズチェック（10MB以下）
+            if (file.size > 10 * 1024 * 1024) {
+                alert('画像サイズは10MB以下にしてください');
+                return;
+            }
+
+            // 画像を最適化
+            const optimizedImage = await optimizeImage(file);
+            selectedImage = optimizedImage;
+
+            // プレビュー表示
+            document.getElementById('preview-image').src = optimizedImage;
+            document.getElementById('preview-container').style.display = 'block';
+        });
+
+        // 画像削除
+        document.getElementById('remove-image').addEventListener('click', () => {
+            selectedImage = null;
+            document.getElementById('image-upload').value = '';
+            document.getElementById('preview-container').style.display = 'none';
+        });
+
+        // 画像最適化関数
+        async function optimizeImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // キャンバスで画像をリサイズ
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // 最大幅を300pxに制限（スクロール表示に最適）
+                        const maxWidth = 300;
+                        const maxHeight = 300;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > maxWidth) {
+                                height = (height * maxWidth) / width;
+                                width = maxWidth;
+                            }
+                        } else {
+                            if (height > maxHeight) {
+                                width = (width * maxHeight) / height;
+                                height = maxHeight;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // JPEG品質70%で圧縮
+                        resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
         // 送信ボタン
         document.getElementById('send-btn').addEventListener('click', () => {
             const text = document.getElementById('text-input').value.trim();
             
-            if (!text) {
-                alert('テキストを入力してください');
+            if (!text && !selectedImage) {
+                alert('テキストまたは画像を入力してください');
                 return;
             }
             
             if (clientRoomCode && ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'send_text',
-                    roomCode: clientRoomCode,
-                    text: text
-                }));
+                // テキスト送信
+                if (text) {
+                    ws.send(JSON.stringify({
+                        type: 'send_text',
+                        roomCode: clientRoomCode,
+                        text: text
+                    }));
+                }
+
+                // 画像送信
+                if (selectedImage) {
+                    ws.send(JSON.stringify({
+                        type: 'send_image',
+                        roomCode: clientRoomCode,
+                        image: selectedImage
+                    }));
+                }
                 
-                // 送信後、テキストエリアをクリア
+                // 送信後、テキストエリアと画像をクリア
                 document.getElementById('text-input').value = '';
                 document.getElementById('text-input').focus();
+                
+                if (selectedImage) {
+                    document.getElementById('remove-image').click();
+                }
             }
         });
 
