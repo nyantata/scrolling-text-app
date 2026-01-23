@@ -79,6 +79,45 @@
             margin-bottom: 20px;
         }
 
+        .host-display.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            border-radius: 0;
+            z-index: 9999;
+            margin: 0;
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(102, 126, 234, 0.8);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 10;
+            transition: all 0.3s;
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(102, 126, 234, 1);
+            transform: scale(1.05);
+        }
+
+        .fullscreen-btn.fullscreen-active {
+            background: rgba(220, 53, 69, 0.8);
+        }
+
+        .fullscreen-btn.fullscreen-active:hover {
+            background: rgba(220, 53, 69, 1);
+        }
+
         .scrolling-text {
             position: absolute;
             white-space: nowrap;
@@ -320,6 +359,7 @@
                 </div>
 
                 <div class="host-display" id="host-display">
+                    <button class="fullscreen-btn" id="fullscreen-btn">🖥️ 全画面</button>
                     <!-- 複数のテキストがここに追加されます -->
                 </div>
 
@@ -655,6 +695,81 @@
 
         // 初期化
         connectWebSocket();
+
+        // 全画面表示機能
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const hostDisplay = document.getElementById('host-display');
+        let isFullscreen = false;
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!isFullscreen) {
+                // 全画面モードに切り替え
+                if (hostDisplay.requestFullscreen) {
+                    hostDisplay.requestFullscreen();
+                } else if (hostDisplay.webkitRequestFullscreen) {
+                    hostDisplay.webkitRequestFullscreen();
+                } else if (hostDisplay.msRequestFullscreen) {
+                    hostDisplay.msRequestFullscreen();
+                } else {
+                    // Fullscreen APIが使えない場合はCSS疑似全画面
+                    hostDisplay.classList.add('fullscreen');
+                    fullscreenBtn.textContent = '❌ 終了';
+                    fullscreenBtn.classList.add('fullscreen-active');
+                    isFullscreen = true;
+                }
+            } else {
+                // 全画面モードを終了
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                } else {
+                    // CSS疑似全画面の場合
+                    hostDisplay.classList.remove('fullscreen');
+                    fullscreenBtn.textContent = '🖥️ 全画面';
+                    fullscreenBtn.classList.remove('fullscreen-active');
+                    isFullscreen = false;
+                }
+            }
+        });
+
+        // Fullscreen API のイベントリスナー
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                fullscreenBtn.textContent = '🖥️ 全画面';
+                fullscreenBtn.classList.remove('fullscreen-active');
+                isFullscreen = false;
+            } else {
+                fullscreenBtn.textContent = '❌ 終了';
+                fullscreenBtn.classList.add('fullscreen-active');
+                isFullscreen = true;
+            }
+        });
+
+        // Webkit用
+        document.addEventListener('webkitfullscreenchange', () => {
+            if (!document.webkitFullscreenElement) {
+                fullscreenBtn.textContent = '🖥️ 全画面';
+                fullscreenBtn.classList.remove('fullscreen-active');
+                isFullscreen = false;
+            } else {
+                fullscreenBtn.textContent = '❌ 終了';
+                fullscreenBtn.classList.add('fullscreen-active');
+                isFullscreen = true;
+            }
+        });
+
+        // ESCキーで全画面終了（CSS疑似全画面用）
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isFullscreen && hostDisplay.classList.contains('fullscreen')) {
+                hostDisplay.classList.remove('fullscreen');
+                fullscreenBtn.textContent = '🖥️ 全画面';
+                fullscreenBtn.classList.remove('fullscreen-active');
+                isFullscreen = false;
+            }
+        });
     </script>
 </body>
 </html>
